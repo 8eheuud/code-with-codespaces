@@ -1,76 +1,60 @@
-<header>
+import telebot
+from pptx import Presentation
+from reportlab.pdfgen import canvas
+import os
 
-<!--
-  <<< Author notes: Course header >>>
-  Read <https://skills.github.com/quickstart> for more information about how to build courses using this template.
-  Include a 1280×640 image, course name in sentence case, and a concise description in emphasis.
-  In your repository settings: enable template repository, add your 1280×640 social image, auto delete head branches.
-  Next to "About", add description & tags; disable releases, packages, & environments.
-  Add your open source license, GitHub uses the MIT license.
--->
+# استبدل بـ Token الخاص بك
+API_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+bot = telebot.TeleBot(API_TOKEN)
 
-# Code with GitHub Codespaces and Visual Studio Code
+# مجلد لحفظ الملفات
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-_Develop code using GitHub Codespaces and Visual Studio Code!_
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "أهلاً بك! أرسل ملف PPT لتحويله إلى PDF.")
 
-</header>
+@bot.message_handler(content_types=['document'])
+def handle_document(message):
+    file_id = message.document.file_id
+    file_info = bot.get_file(file_id)
+    file_path = file_info.file_path
 
-<!--
-  <<< Author notes: Course start >>>
-  Include start button, a note about Actions minutes,
-  and tell the learner why they should take the course.
--->
+    # تنزيل الملف
+    downloaded_file = bot.download_file(file_path)
+    ppt_file = os.path.join(UPLOAD_FOLDER, message.document.file_name)
 
-## Welcome
+    with open(ppt_file, 'wb') as new_file:
+        new_file.write(downloaded_file)
 
-GitHub Codespaces is a development environment that's hosted in the cloud.
+    # تحويل الملف إلى PDF
+    pdf_file = ppt_file.replace('.pptx', '.pdf')
+    try:
+        convert_ppt_to_pdf(ppt_file, pdf_file)
+        with open(pdf_file, 'rb') as pdf:
+            bot.send_document(message.chat.id, pdf)
+    except Exception as e:
+        bot.reply_to(message, f"حدث خطأ أثناء التحويل: {e}")
+    finally:
+        # حذف الملفات المؤقتة
+        os.remove(ppt_file)
+        if os.path.exists(pdf_file):
+            os.remove(pdf_file)
 
-- **Who this is for**: Developers, DevOps Engineers, Engineering Managers, Product Managers.
-- **What you'll learn**: How to create a codespace, push code from a codespace, select a custom image, and customize a codespace.
-- **What you'll build**: A codespace with devcontainer.json files, customizations, and personalizations.
-- **Prerequisites**: If you need to learn about Visual Studio Code, read [Visual Studio Code Docs](https://code.visualstudio.com/docs) first.
-- **How long**: This course can be completed in less than an hour.
+def convert_ppt_to_pdf(ppt_path, pdf_path):
+    prs = Presentation(ppt_path)
+    c = canvas.Canvas(pdf_path)
 
-In this course, you will:
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                text = shape.text
+                c.drawString(100, 800, text)  # إضافة النص إلى الـ PDF (تنسيق بسيط)
+        c.showPage()
 
-1. Create your first codespace
-2. Add a custom image
-3. Customize your codespace
-4. Personalize your codespace
+    c.save()
 
-### How to start this course
-
-<!-- For start course, run in JavaScript:
-'https://github.com/new?' + new URLSearchParams({
-  template_owner: 'skills',
-  template_name: 'code-with-codespaces',
-  owner: '@me',
-  name: 'skills-code-with-codespaces',
-  description: 'My clone repository',
-  visibility: 'public',
-}).toString()
--->
-
-[![start-course](https://user-images.githubusercontent.com/1221423/235727646-4a590299-ffe5-480d-8cd5-8194ea184546.svg)](https://github.com/new?template_owner=skills&template_name=code-with-codespaces&owner=%40me&name=skills-code-with-codespaces&description=My+clone+repository&visibility=public)
-
-1. Right-click **Start course** and open the link in a new tab.
-2. In the new tab, most of the prompts will automatically fill in for you.
-   - For owner, choose your personal account or an organization to host the repository.
-   - We recommend creating a public repository, as private repositories will [use Actions minutes](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions).
-   - Scroll down and click the **Create repository** button at the bottom of the form.
-3. After your new repository is created, wait about 20 seconds, then refresh the page. Follow the step-by-step instructions in the new repository's README.
-
-<footer>
-
-<!--
-  <<< Author notes: Footer >>>
-  Add a link to get support, GitHub status page, code of conduct, license link.
--->
-
----
-
-Get help: [Post in our discussion board](https://github.com/orgs/skills/discussions/categories/code-with-codespaces) &bull; [Review the GitHub status page](https://www.githubstatus.com/)
-
-&copy; 2023 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
-
-</footer>
+if __name__ == "__main__":
+    print("البوت يعمل...")
+    bot.polling()
